@@ -1,0 +1,37 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="mb-10 text-center">
+    {% if search_query %}
+    <h2 class="text-3xl font-bold mb-2">Search Results for "{{ search_query }}"</h2>
+    <a href="{% url 'index' %}" class="text-red-500 hover:underline">← Back to Popular Movies</a>
+    {% else %}
+    <h2 class="text-3xl font-bold mb-2">Recommended for You</h2>
+    <p class="text-gray-400">Based on your recent interests</p>
+    {% endif %}
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+    {% for movie in movies %}
+    <a href="{% url 'movie_detail' movie.tmdb_id %}"
+        class="group bg-gray-800 rounded-xl overflow-hidden shadow-lg transition transform hover:-translate-y-2 hover:shadow-2xl block">
+        <div class="relative aspect-[2/3] poster-placeholder">
+            <img class="fetch-poster w-full h-full object-cover opacity-0 transition-opacity duration-500"
+                data-tmdb-id="{{ movie.tmdb_id }}" alt="{{ movie.title }}"
+                src="https://via.placeholder.com/500x750?text={{ movie.title|urlencode }}">
+        </div>
+        <div class="p-4">
+            <h3 class="font-semibold text-lg truncate group-hover:text-red-500 transition" title="{{ movie.title }}">
+                {{ movie.title }}
+            </h3>
+            <div class="flex justify-between items-center text-xs text-gray-400 mt-2">
+                <span>{{ movie.release_date|date:"Y" }}</span>
+                <span class="text-yellow-400">★ {{ movie.vote_average }}</span>
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <p class="col-span-full text-center text-gray-500 py-10 italic">No movies found. Start by searching!</p>
+    {% endfor %}
+</div>
+{% endblock %}

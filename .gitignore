@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media
+
+# Large Data Files (GitHub limit 100MB)
+simlarity.pkl
+# movie_list.pkl is ~2MB, so it can stay if needed, but usually data is ignored.
+# keeping movie_list.pkl as it seems essential for the app to run without re-import.
+# excluding the big matrix.
+
+# Environments
+.env
+env/
+venv/

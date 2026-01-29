@@ -12,15 +12,14 @@ def load_artifacts():
     if _MOVIES_DF is None or _SIMILARITY is None:
         base_dir = settings.BASE_DIR.parent # Recommendation_System root
         
-        movies_path = os.path.join(base_dir, 'movie_list.pkl')
-        sim_path = os.path.join(base_dir, 'simlarity.pkl') # Note typo in original file
+        # Updated filenames
+        movies_path = os.path.join(base_dir, 'movies.pkl') # Was movie_list.pkl
+        sim_path = os.path.join(base_dir, 'similarity.pkl') # Fixed typo
         
         if not os.path.exists(movies_path) or not os.path.exists(sim_path):
-            # Fallback for when files might be in 'articficats' folder?
-            # Or if running from different context.
             print(f"Artifacts not found at {movies_path}. Checking artifacts dir...")
-            movies_path = os.path.join(base_dir, 'articficats', 'movie_list.pkl')
-            sim_path = os.path.join(base_dir, 'articficats', 'simlarity.pkl')
+            movies_path = os.path.join(base_dir, 'artifacts', 'movies.pkl')
+            sim_path = os.path.join(base_dir, 'artifacts', 'similarity.pkl')
         
         try:
             with open(movies_path, 'rb') as f:
@@ -40,26 +39,65 @@ def get_recommendations(title):
         return []
 
     try:
-        # Find index
-        movie_indices = _MOVIES_DF[_MOVIES_DF['title'] == title].index
-        if len(movie_indices) == 0:
+        # Find index (Case Insensitive)
+        matches = _MOVIES_DF[_MOVIES_DF['title'].str.lower() == title.lower()]
+        if matches.empty:
             return []
         
-        idx = movie_indices[0]
+        # Use first match
+        idx = matches.index[0]
         
-        # Get similarity scores
-        distances = sorted(list(enumerate(_SIMILARITY[idx])), reverse=True, key=lambda x: x[1])
+        # New Logic: _SIMILARITY[idx] now contains INDICES of top matches, not raw scores.
+        # The 0-th element is the movie itself, so we take 1:6
+        similar_indices = _SIMILARITY[idx][1:6]
         
-        # Top 5 (excluding self)
         recommended_movies = []
-        for i in distances[1:6]:
-            row = _MOVIES_DF.iloc[i[0]]
+        for i in similar_indices:
+            row = _MOVIES_DF.iloc[i]
             recommended_movies.append({
                 'title': row['title'],
-                'movie_id': row['movie_id'] # TMDB ID
+                'movie_id': row['movie_id'] # Ensure generate_models.py creates this column
             })
             
         return recommended_movies
     except Exception as e:
         print(f"Error generating recommendations for {title}: {e}")
+        return []
+
+def search_movies(query, search_type):
+    """
+    Search for movies by Title, Language, or Genre.
+    Returns a list of movie IDs (tmdb_id).
+    """
+    load_artifacts()
+    if _MOVIES_DF.empty:
+        return []
+    
+    query = str(query).lower().strip()
+    results = []
+
+    try:
+        if search_type == 'title':
+            # Simple substring match
+            mask = _MOVIES_DF['title'].str.lower().str.contains(query, na=False)
+            results = _MOVIES_DF[mask]['movie_id'].tolist()
+            
+        elif search_type == 'language':
+            # Exact match on original_language (e.g., 'en', 'ml')
+            mask = _MOVIES_DF['original_language'].astype(str).str.lower() == query
+            results = _MOVIES_DF[mask]['movie_id'].tolist()
+            
+        elif search_type == 'genre':
+            # Substring match on tags (since genres are in tags) OR check 'genres' column if we kept it
+            # We didn't keep 'genres' column in generate_models.py preprocess_data return
+            # But 'tags' includes genres.
+            # Ideally generate_models.py should have preserved 'genres' for better filtering.
+            # Fallback: Search in tags, though this might be noisy.
+            # Better: Search in tags is acceptable for now.
+            mask = _MOVIES_DF['tags'].str.contains(query, na=False)
+            results = _MOVIES_DF[mask]['movie_id'].tolist()
+            
+        return results[:50] # Limit to top 50 to avoid overloading DB
+    except Exception as e:
+        print(f"Error searching movies: {e}")
         return []

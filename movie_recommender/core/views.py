@@ -61,40 +61,33 @@ def movie_detail(request, movie_id):
 
 def search(request):
     query = request.GET.get('q', '')
-    if query:
-        # 1. Get standard search results
-        search_results = list(Movie.objects.filter(title__icontains=query).order_by('-popularity'))
-        
-        # 2. Get recommendations for the best match (if any)
-        recommendations = []
-        if search_results:
-            best_match = search_results[0]
-            recs_data = get_recommendations(best_match.title)
-            for item in recs_data:
-                rec_obj = Movie.objects.filter(title=item['title']).first()
-                if rec_obj:
-                    recommendations.append(rec_obj)
-        
-        # 3. Combine: [Search Results (limited)] + [Recommendations]
-        # We limit search results to 5 to keep focus on recommendations if the user wants "movies of that kind"
-        # Using a set to remove duplicates while preserving order
-        seen_titles = set()
-        final_movies = []
-        
-        # Add search results first
-        for movie in search_results:
-            if movie.title not in seen_titles:
-                final_movies.append(movie)
-                seen_titles.add(movie.title)
-        
-        # Add recommendations
-        for movie in recommendations:
-            if movie.title not in seen_titles:
-                final_movies.append(movie)
-                seen_titles.add(movie.title)
-                
-        movies = final_movies
-    else:
-        movies = []
+    filter_type = request.GET.get('type', 'title') # 'title', 'language', 'genre'
     
-    return render(request, 'core/index.html', {'movies': movies, 'search_query': query})
+    movies = []
+    
+    if query:
+        # Use our updated utils function to find matching IDs
+        from .utils import search_movies
+        matching_ids = search_movies(query, filter_type)
+        
+        if matching_ids:
+            # Fetch objects from DB preserving order
+            # Django's 'in' lookup doesn't preserve order, so we fetch and sort in python
+            fetched_movies = Movie.objects.filter(tmdb_id__in=matching_ids)
+            movie_map = {m.tmdb_id: m for m in fetched_movies}
+            
+            for mid in matching_ids:
+                if mid in movie_map:
+                    movies.append(movie_map[mid])
+        
+        # If searching by title and we have a "best match", we could append recommendations too
+        # But for specific filters like "Language", we should probably just show the results.
+        if filter_type == 'title' and movies:
+             # Logic to add recommendations for the first result could go here similar to before
+             pass
+
+    return render(request, 'core/index.html', {
+        'movies': movies, 
+        'search_query': query,
+        'filter_type': filter_type
+    })
